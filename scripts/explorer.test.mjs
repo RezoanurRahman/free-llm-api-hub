@@ -174,6 +174,28 @@ test('shareable sort URLs preserve a valid ascending or descending direction', (
   assert.match(src, /th\.classList\.toggle\('asc', sortDir === 1\)/, 'the restored visual indicator must match the restored direction');
 });
 
+test('the no-training chip keeps only providers that explicitly say false', () => {
+  const src = readFileSync(new URL('../site/explorer.js', import.meta.url), 'utf8');
+  const filterSource = src.match(/let rows = DATA\.filter\(p => \{[\s\S]*?\n  \}\);/);
+  assert.ok(filterSource, 'the explorer filter must be present');
+  const filterRows = new Function(
+    'DATA', 'needle', 'category', 'modality', 'nocard', 'nophone', 'commercial', 'notrain', 'openai', 'verifiedOnly',
+    `${filterSource[0]}\nreturn rows;`,
+  );
+  const providers = [
+    { slug: 'false', data_policy: { trains_on_prompts: false } },
+    { slug: 'true', data_policy: { trains_on_prompts: true } },
+    { slug: 'null', data_policy: null },
+    { slug: 'missing' },
+  ];
+  const got = filterRows(providers, '', 'all', 'all', false, false, false, true, false, false).map((p) => p.slug);
+  assert.deepEqual(got, ['false']);
+
+  const index = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
+  assert.match(index, /<input type="checkbox" id="f-notrain"> Doesn't train on prompts/);
+  assert.match(src, /\['notrain', 'f-notrain'\]/, 'the filter must be shareable as ?notrain=1');
+});
+
 // ---------- provider compare view (#175) ----------
 // The interactive /compare/ view renders with window.FLLM_COMPARE — the
 // serialised copy of lib/compare.mjs that also renders the static
